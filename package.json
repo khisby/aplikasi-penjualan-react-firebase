@@ -11,6 +11,7 @@
     "@testing-library/user-event": "^7.1.2",
     "firebase": "^7.6.1",
     "notistack": "^0.9.7",
+    "numeral": "^2.0.6",
     "react": "^16.12.0",
     "react-dom": "^16.12.0",
     "react-firebase-hooks": "^2.1.1",

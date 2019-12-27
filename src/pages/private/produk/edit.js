@@ -140,7 +140,7 @@ function EditProduk({match}){
                         ...currentForm,
                         foto: fotoUrl
                     }))
-                    setSomethingChange(false)
+                    setSomethingChange(true)
                 }catch(e){
                     setError(error=>({
                         ...error,
