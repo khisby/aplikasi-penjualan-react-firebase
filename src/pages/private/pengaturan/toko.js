@@ -32,7 +32,7 @@ function Toko() {
     const [isSomethingChange, setSomethingChange] = useState(false)
 
     useEffect(() => {
-        if (snapshot) {
+        if (snapshot && snapshot.exists) {
             setForm(snapshot.data());
         }
     }, [snapshot])
