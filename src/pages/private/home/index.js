@@ -12,7 +12,7 @@ import format from 'date-fns/format'
 
 function Home() {
     const classes = useStyle()
-    const { auth, firestore, user} = useFirebase()
+    const { firestore, user} = useFirebase()
     const { enqueueSnackbar } = useSnackbar() 
     const todayDateString = format(new Date(), 'yyyy-MM-dd')
     const produkCol = firestore.collection(`toko/${user.uid}/produk`)
