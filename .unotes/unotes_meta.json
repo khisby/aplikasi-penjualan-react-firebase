@@ -1,0 +1,22 @@
+{
+  "name": "",
+  "isOrdered": true,
+  "folders": {
+    "public": {
+      "name": "public",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "src": {
+      "name": "src",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    }
+  },
+  "files": {
+    "README.old": 0,
+    "README": 1
+  }
+}
