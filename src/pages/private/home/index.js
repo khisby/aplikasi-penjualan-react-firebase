@@ -2,28 +2,50 @@ import React, { useEffect, useState } from 'react';
 import { useFirebase } from '../../../components/FirebaseProvider';
 import {Button, List, ListItem, ListSubheader, ListItemIcon, ListItemText, ListItemAvatar, Typography, Grid, Avatar, TextField, Table, TableRow, TableHead, TableBody, TableCell} from '@material-ui/core'
 import ImageIcon from '@material-ui/icons/Image'
-import { userCollection, useCollection } from 'react-firebase-hooks/firestore'
+import SaveIcon from '@material-ui/icons/Save'
+import { useCollection } from 'react-firebase-hooks/firestore'
 import AppPageLoading from '../../../components/AppPageLoading'
 import useStyle from './styles'
 import { useSnackbar } from 'notistack';
 import { currency } from '../../../utils/formatter'
+import format from 'date-fns/format'
 
 function Home() {
     const classes = useStyle()
     const { auth, firestore, user} = useFirebase()
     const { enqueueSnackbar } = useSnackbar() 
+    const todayDateString = format(new Date(), 'yyyy-MM-dd')
     const produkCol = firestore.collection(`toko/${user.uid}/produk`)
-    const [transaksi, setTransaksi] = useState({
+    const transaksiCol = firestore.collection(`toko/${user.uid}/transaksi`) 
+    const initialTransaksi = {
+        no: '',
         items:{
 
         },
-        total: 0
-    })
+        total: 0,
+        tanggal: todayDateString
+    }
+    const [transaksi, setTransaksi] = useState(initialTransaksi)
+    
+    const [snapshotTransaksi, loadingTransaksi] = useCollection(transaksiCol.where('tanggal', '==', todayDateString))
     const [snapshotProduk, loadingProduk] = useCollection(produkCol)
     const [produkItems, setProdukItems] = useState([])
     const [filterProduk, setFilterProduk] = useState('')
+    const [isSubmitting, setSubmitting] = useState(false)
 
-    
+    useEffect(()=>{
+        if(snapshotTransaksi){
+            setTransaksi(transaksi=>({
+                ...transaksi,
+                 no: `${transaksi.tanggal}/${snapshotTransaksi.docs.length+1}`
+            }))
+        }else{
+            setTransaksi(transaksi=>({
+                ...transaksi,
+                 no: `${transaksi.tanggal}/1`
+            }))
+        }
+    },[snapshotTransaksi])
     useEffect(()=>{
         if(snapshotProduk){
             setProdukItems(snapshotProduk.docs.filter((produkDoc)=>{
@@ -99,7 +121,51 @@ function Home() {
         }
     }
 
-    if(loadingProduk){
+    const simpanTransaksi = async (e) => {
+        if(Object.keys(transaksi.items).length <= 0){
+            enqueueSnackbar('Tidak ada Transaksi untuk disimpan',{variant: 'error'})
+        }else{
+            setSubmitting(true)
+            try{
+                await transaksiCol.add({
+                    ...transaksi,
+                    timestamp: Date.now()
+                })
+
+                await firestore.runTransaction(transaction=>{
+                    const produkIDs = Object.keys(transaksi.items)
+                    return Promise.all(produkIDs.map(produkId=>{
+                        const produkRef = firestore.doc(`toko/${user.uid}/produk/${produkId}`)
+                        return transaction.get(produkRef).then(
+                            (produkDoc)=>{
+                                if(!produkDoc.exists){
+                                    throw Error('Produk Tidak Ada')
+                                }
+
+                                let newStok = parseInt(produkDoc.data().stock) - parseInt(transaksi.items[produkId].jumlah)
+                                if(newStok < 0){
+                                    newStok = 0
+                                }
+
+                                transaction.update(produkRef, {stock: newStok})
+                            }
+                        )
+                    }))
+                })
+
+                enqueueSnackbar('Transaksi berhasil disimpan',{variant: 'success'})
+                setTransaksi(transaksi=>({
+                    ...initialTransaksi,
+                    no: transaksi.no
+                }))
+            }catch(e){
+                enqueueSnackbar(e.message,{variant: 'error '})    
+            }
+            setSubmitting(false)
+        }
+    }
+
+    if(loadingProduk || loadingTransaksi){
         return <AppPageLoading/>
     }
 
@@ -107,6 +173,20 @@ function Home() {
         <Typography variant="h5" component="h1" paragraph>
             Buat Transaksi Baru
         </Typography>
+        <Grid container spacing={5}>
+            <Grid item xs>
+                <TextField 
+                    label="No Transaksi"
+                    value={transaksi.no}
+                    InputProps={
+                        {readOnly: true}
+                    }
+                />
+            </Grid>
+            <Grid item>
+                <Button variant="contained" color="primary" onClick={simpanTransaksi} disabled={isSubmitting}><SaveIcon className={classes.iconLeft}/>Simpan Transaksi</Button>
+            </Grid>
+        </Grid>
         <Grid container>
             <Grid item xs={12} md={8}>
                 <Table>
@@ -123,7 +203,7 @@ function Home() {
                                 return (
                                     <TableRow key={k}>
                                         <TableCell>{item.nama}</TableCell>
-                                        <TableCell><TextField className={classes.inputJumlah} onChange={handleChangeJumlah(k)} value={item.jumlah} type="number" /></TableCell>
+                                        <TableCell><TextField className={classes.inputJumlah} onChange={handleChangeJumlah(k)} value={item.jumlah} type="number"  disabled={isSubmitting}/></TableCell>
                                         <TableCell>{currency(item.harga)}</TableCell>
                                         <TableCell>{currency(item.subtotal)}</TableCell>
                                     </TableRow>
@@ -159,7 +239,7 @@ function Home() {
                     {
                         produkItems.map((produkDoc)=>{
                             const produkData = produkDoc.data()
-                            return <ListItem key={produkDoc.id} button disabled={!produkData.stock} onClick={addItem(produkDoc)}>
+                            return <ListItem key={produkDoc.id} button disabled={!produkData.stock || isSubmitting} onClick={addItem(produkDoc)}>
                                 {
                                     produkData.foto?
                                     <ListItemAvatar>
